@@ -53,4 +53,3 @@ def kn(z):
 
 def it(k):
     return product(range(k), range(k))
-

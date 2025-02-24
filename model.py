@@ -4,7 +4,7 @@ import theano.tensor as T
 import lasagne
 from utils import LSTMAttentionDecodeFeedbackLayer, DropoutSeqPosLayer 
 
-def neural_network(batch_size, n_hid, n_feat, n_class, lr, drop_per, drop_hid, n_filt):
+def neural_network(batch_size, n_hid, n_feat, n_class, lr, drop_per, drop_hid, n_filt, multilabel=False):
 	"""Compile a Convolutional BLSTM neural network for protein subcellular localization
 	   
 	Parameters:
@@ -25,7 +25,10 @@ def neural_network(batch_size, n_hid, n_feat, n_class, lr, drop_per, drop_hid, n
 	# Prepare Theano variables for inputs, masks and targets
 	w_inits = lasagne.init.Orthogonal('relu')
 	input_var = T.tensor3('inputs')
-	target_var = T.ivector('targets')
+	if multilabel:
+		target_var = T.matrix('targets', dtype='float32')
+	else:
+		target_var = T.ivector('targets')
 	mask_var = T.matrix('masks')
 	
 	# Input layer, holds the shape of the data
@@ -86,14 +89,22 @@ def neural_network(batch_size, n_hid, n_feat, n_class, lr, drop_per, drop_hid, n
 	# Final fully connected dense layer	
 	l_dense = lasagne.layers.DenseLayer(lasagne.layers.dropout(l_last_hid, p=drop_hid), name="Dense", num_units=n_hid*2, W=w_inits, nonlinearity=lasagne.nonlinearities.rectify)
 	
-	# Softmax output layer
-	l_out = lasagne.layers.DenseLayer(lasagne.layers.dropout(l_dense, p=drop_hid), num_units=n_class, name="Softmax", W=w_inits, nonlinearity=lasagne.nonlinearities.softmax)
-	
+	# Output layer
+	if multilabel:
+		output_nonlinearity = lasagne.nonlinearities.sigmoid
+	else:
+		output_nonlinearity = lasagne.nonlinearities.softmax
+	l_out = lasagne.layers.DenseLayer(lasagne.layers.dropout(l_dense, p=drop_hid), num_units=n_class, name="Output", W=w_inits, nonlinearity=output_nonlinearity)
+    
+
 	# Get output training
 	prediction = lasagne.layers.get_output(l_out, inputs={l_in: input_var, l_mask: mask_var}, deterministic=False)
 
 	# Loss function
-	t_loss = T.nnet.categorical_crossentropy(prediction, target_var)
+	if multilabel:
+		t_loss = T.nnet.binary_crossentropy(prediction, target_var)#multilabel problem
+	else:
+		t_loss = T.nnet.categorical_crossentropy(prediction, target_var)
 	loss = T.mean(t_loss)
 
 	# Parameters
@@ -108,7 +119,10 @@ def neural_network(batch_size, n_hid, n_feat, n_class, lr, drop_per, drop_hid, n
 	test_prediction, context_vec = lasagne.layers.get_output([l_out, l_last_hid], inputs={l_in: input_var, l_mask: mask_var}, deterministic=True)
 	
 	# Loss function 
-	t_test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
+	if multilabel:
+		t_test_loss = lasagne.objectives.binary_crossentropy(test_prediction, target_var) #multilabel problem
+	else:
+		t_test_loss = lasagne.objectives.categorical_crossentropy(test_prediction, target_var)
 	test_loss = T.mean(t_test_loss)
 	
 	# Build functions

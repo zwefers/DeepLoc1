@@ -1,0 +1,17 @@
+name: deeploc1
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=2*
+  - cudatoolkit
+  - theano
+  - lasagne
+  - numpy=1.16.4
+  - pandas
+  - h5py
+  - scikit-learn
+  - pygpu
+  - nose
+  - importlib-metadata
